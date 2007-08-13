@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 
 # Copyright 2007 Saul Bancroft
 #
@@ -179,7 +180,7 @@ def usage():
 
 def main():
   try:
-    opts, args = getopt.getopt(sys.argv[1:], "hsl:a:p:o:u:w:", 
+    opts, args = getopt.getopt(sys.argv[1:], "hsl:a:p:o:u:w:t:", 
       ["help", "silent",
        "upload=", "host=",
        "port=", "user=", 
