@@ -96,8 +96,9 @@ class uTorrent(HTTPConnection):
 			self.connect()
 		except socket.error, exception:
 			logging.critical(exception.args[1])
-			logging.shutdown()
-			sys.exit(1)
+			raise exception
+			#logging.shutdown()
+			#sys.exit(1)
 
 		self.username = username
 		self.password = password
