@@ -128,10 +128,13 @@ class torrents:
     return None
 
   def add_file(self, file):
+    result = None
     if file.startswith("http") or file.startswith("ftp"):
-      self.connection.webui_add_url(file)
+      result = self.connection.webui_add_url(file)
     else:
-      self.connection.webui_add_file(file)
+      result = self.connection.webui_add_file(file)
+    if result == None:
+      raise Exception("Failed to open torrent")
     self.update()
 
   def remove(self, hash):
@@ -185,7 +188,8 @@ def main():
        "upload=", "host=",
        "port=", "user=", 
        "password=", "hash=",
-       "action="])
+       "action=",
+       "remove", "start", "stop", "fstart", "detail", "list"])
   except getopt.GetoptError:
     # print help information and exit:
     usage()
@@ -223,6 +227,18 @@ def main():
       file = a
     elif o == "--action" or o == "-a":
       action = a
+    elif o == "--remove":
+      action = "remove"
+    elif o == "--start":
+      action = "start"
+    elif o == "--fstart":
+      action = "fstart"
+    elif o == "--stop":
+      action = "stop"
+    elif o == "--detail":
+      action = "detail"
+    elif o == "--list":
+      action = "list"
 
   if not silent:
     print "      cuTorrent"
