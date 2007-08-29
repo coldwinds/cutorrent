@@ -17,6 +17,7 @@
 from uTorrent_py.uTorrent import *
 import getopt
 import sys
+import os
 
 class torrent:
   def __init__(self, torrent_info):
@@ -69,7 +70,7 @@ class torrent:
     cyan = ""
     red = ""
     normal = ""
-    if color:
+    if color and os.name == 'posix':
       blue = "\033[34m"
       red = "\033[31m"
       grey = "\033[37m"
@@ -240,12 +241,18 @@ def main():
     elif o == "--list":
       action = "list"
 
+  try:
+    list = torrents(host=host,port=port,username=username,password=password)
+  except:
+    print "ERROR: Unable to connect to uTorrent Web UI"
+    usage()
+    sys.exit(1)
+
   if not silent:
     print "      cuTorrent"
     print "By: Saul Bancroft <saul.bancroft@gmail.com>"
     print ""
     print "+"+action+"+"
-  list = torrents(host=host,port=port,username=username,password=password)
   if file is not None:
     if not silent:
       print "uploading torrent %s" % file
