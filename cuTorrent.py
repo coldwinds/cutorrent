@@ -14,10 +14,43 @@
 # See the License for the specific language governing permissions and 
 # limitations under the License.
 
+# More API Details: http://forum.utorrent.com/viewtopic.php?pid=272592
+
 from uTorrent_py.uTorrent import *
 import getopt
 import sys
 import os
+
+Colors = { 
+          'blue' : "\033[34m",
+          'red' : "\033[31m",
+          'grey' : "\033[37m",
+          'green' : "\033[32m",
+          'cyan' : "\033[36m",
+          'yellow' : "\033[33m",
+          'normal' : "\033[0m",
+         } 
+
+if os.name != 'posix':
+  for a in Colors.keys():
+    Colors[a] = ""
+
+# State Strings
+State_Strings = (
+                 #(1   , "Started"),
+                 #(2   , "Checking"),
+                 #(4   , "Start after Check"),
+                 #(8   , "Checked"),
+                 #(16  , "Error"),
+                 #(32  , "Paused"),
+                 #(64  , "Queued"),
+                 #(128 , "Loaded"),
+                 (16  , "Error"),
+                 (2   , "Checking"),
+                 (1+64, "Downloading"),
+                 (8+128, "Stopped"),
+                 (1, "Forced Download"),
+                ) 
 
 class torrent:
   def __init__(self, torrent_info):
@@ -37,11 +70,13 @@ class torrent:
     self.ratio = self.info[UT_TORRENT_STAT_RATIO]
     self.seed_num = self.info[UT_TORRENT_STAT_SEED_CONN]
     self.peer_num = self.info[UT_TORRENT_STAT_PEER_CONN]
+    self.position = self.info[UT_TORRENT_STAT_QUEUE_POS]
 
   def detailed(self):
     a = ""
     a += "Name: %s\n" % self.name
     a += "Hash: %s\n" % self.hash
+    a += "Position: %s\n" % self.position
     a += "Percent: %.1f\n" % self.percent
     a += "Speed up: %s\n" % self.speed_up
     a += "Speed down: %s\n" % self.speed_down
@@ -64,38 +99,23 @@ class torrent:
     return "%s %s:%02d.%s" % (days, hour, min, sec)
 
   def console_out(self, color=True):
-    blue = ""
-    grey = ""
-    green = ""
-    cyan = ""
-    red = ""
-    normal = ""
-    if color and os.name == 'posix':
-      blue = "\033[34m"
-      red = "\033[31m"
-      grey = "\033[37m"
-      green = "\033[32m"
-      cyan = "\033[36m"
-      normal = "\033[0m"
-    s  = self.name + ": %s\n" % self.state_str()
-    s += "\t"+blue + self.hash + normal + " - "
-    s += "%s%.1f%s%% " % (red, self.percent, normal) 
-    s += "(" + green + "D:" + str(self.speed_down) + normal +", "
-    s += cyan + "U:" + str(self.speed_up) + normal + ") "
+    s  = "%s(%d)%s %s : %s\n" % \
+                (Colors['yellow'], self.position ,Colors['normal'],
+                 self.name,self.state_str())
+    s += "\t"+Colors['blue'] + self.hash + Colors['normal'] + " - "
+    s += "%s%.1f%s%% " % (Colors['red'], self.percent, Colors['normal']) 
+    s += "(" + Colors['green'] + "D:" + str(self.speed_down) + Colors['normal'] +", "
+    s += Colors['cyan'] + "U:" + str(self.speed_up) + Colors['normal'] + ") "
     s += "eta: " + self.decode_time(self.eta)
     return s
 
   def state_str(self):
-    state_o = "%o" % self.state
-    if state_o == "310":
-      return "queued"
-    elif state_o == "311":
-      return "downloading"
-    elif state_o == "210":
-      return "stoped"
-    elif state_o == "211":
-      return "force start"
-    return state_o
+    state_o = ""
+    for bits, string in State_Strings:
+      if bits & self.state:
+        state_o = string 
+        break
+    return "%s (%o)" % (state_o, self.state)
 
   def __str__(self):
     s = "%s (%s): %s%% (D:%s, U:%s)" % (self.name, self.hash, self.percent, 
@@ -123,7 +143,25 @@ class torrents:
       self.speed_down += t2.speed_down
       self.torrent_list[t2.hash] = t2
 
-  def getTorrent(self, hash):
+  def getTorrent(self, tor):
+    order = 0
+    try: 
+     order = int(tor)
+    except :
+     order = 0 
+    hash = ""
+    if order > 0 and order < 100:
+      # it's an ordering not a hash
+      for t in self.torrent_list.values():
+        if t.position == order:
+          hash = t.hash
+          break
+      print "saul"
+      if hash == "":
+        raise Exception('Incorrect torrent number')
+      print hash  
+    else:
+      hash = tor
     if hash in self.torrent_list:
       return self.torrent_list[hash]
     return None
@@ -168,7 +206,7 @@ def usage():
   print " -h/--help       This screen"
   print " -s/--silent     Silent run (ie no output)"
   print " -l/--upload     File or URL of a torrent to upload"
-  print " -t/--hash       Hashs of the torrents to modify"
+  print " -t/--torrent    Hashs of the torrents to modify"
   print "                 (separate hashes by commas)"
   print " -a/--action     Action to preform (default: list)"
   print "                   list   - List all torrents"
@@ -188,7 +226,7 @@ def main():
       ["help", "silent",
        "upload=", "host=",
        "port=", "user=", 
-       "password=", "hash=",
+       "password=", "torrent=",
        "action=",
        "remove", "start", "stop", "fstart", "detail", "list"])
   except getopt.GetoptError:
@@ -197,7 +235,7 @@ def main():
     sys.exit(2)
   host = "localhost"
   port = 8080
-  hashs = []
+  torrent_ids = []
   action = "list"
   username = "admin"
   password = "admin"
@@ -210,12 +248,12 @@ def main():
     elif o == "-h" or o == "--help":
       usage()
       return
-    elif o == "--hash" or o == "-t":
+    elif o == "--torrent" or o == "-t":
       if "," in a:
         for b in a.split(","):
-          hashs.append(b)
+          torrent_ids.append(b)
       else:
-        hashs.append(a)
+        torrent_ids.append(a)
     elif o == "--host" or o == "-o":
       host = a
     elif o == "--port" or o == "-p":
@@ -260,8 +298,12 @@ def main():
   if action == "list":  
     if not silent:
       print list
-  elif len(hashs) > 0:
-    for hash in hashs:
+  elif len(torrent_ids) > 0:
+    for tor_id in torrent_ids:
+      tor = list.getTorrent(tor_id)
+      if tor is None:
+        continue
+      hash = tor.hash
       if action == "start":  
         if not silent:
           print "Start: %s" % hash
