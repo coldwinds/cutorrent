@@ -96,10 +96,12 @@ class torrent:
     time = time / 60
     hour = time % 24
     days = time / 24
+    if days == -1:
+      return "N/A"
     return "%s %s:%02d.%s" % (days, hour, min, sec)
 
   def console_out(self, color=True):
-    s  = "%s(%d)%s %s : %s\n" % \
+    s  = "%s(%02d)%s %s : %s\n" % \
                 (Colors['yellow'], self.position ,Colors['normal'],
                  self.name,self.state_str())
     s += "\t"+Colors['blue'] + self.hash + Colors['normal'] + " - "
@@ -156,17 +158,15 @@ class torrents:
         if t.position == order:
           hash = t.hash
           break
-      print "saul"
       if hash == "":
         raise Exception('Incorrect torrent number')
-      print hash  
     else:
       hash = tor
     if hash in self.torrent_list:
       return self.torrent_list[hash]
     return None
 
-  def add_file(self, file):
+  def add_torrent(self, file):
     result = None
     if file.startswith("http") or file.startswith("ftp"):
       result = self.connection.webui_add_url(file)
@@ -182,11 +182,17 @@ class torrents:
   def stop(self, hash):
     self.connection.webui_stop_torrent(hash)
 
+  def pause(self, hash):
+    self.connection.webui_pause_torrent(hash)
+
   def force_start(self, hash):
     self.connection.webui_forcestart_torrent(hash)
 
   def start(self, hash):
     self.connection.webui_start_torrent(hash)
+
+  def files(self, hash):
+    self.connection.webui_ls_files(hash)
 
   def __str__(self):
     s = ""
@@ -206,7 +212,7 @@ def usage():
   print " -h/--help       This screen"
   print " -s/--silent     Silent run (ie no output)"
   print " -l/--upload     File or URL of a torrent to upload"
-  print " -t/--torrent    Hashs of the torrents to modify"
+  print " -t/--torrent    Hashs or Number of the torrents to modify"
   print "                 (separate hashes by commas)"
   print " -a/--action     Action to preform (default: list)"
   print "                   list   - List all torrents"
@@ -294,7 +300,7 @@ def main():
   if file is not None:
     if not silent:
       print "uploading torrent %s" % file
-    list.add_file(file)
+    list.add_torrent(file)
   if action == "list":  
     if not silent:
       print list
