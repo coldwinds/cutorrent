@@ -72,6 +72,16 @@ class torrent:
     self.peer_num = self.info[UT_TORRENT_STAT_PEER_CONN]
     self.position = self.info[UT_TORRENT_STAT_QUEUE_POS]
 
+  def update_files(self, file_info):
+    self.files_info = []
+    for  f in file_info['files'][1]:
+      self.files_info.append({
+                              'name': f[0],
+                              'size': f[1],
+                              'download': f[2],
+                              'priority':f[3],
+                              })
+  
   def detailed(self):
     a = ""
     a += "Name: %s\n" % self.name
@@ -87,6 +97,9 @@ class torrent:
     a += "Ratio: %s\n" % (self.ratio / 1000.0)
     a += "Seeds: %s\n" % self.seed_num
     a += "Peers: %s\n" % self.peer_num
+    a += "Files:\n"
+    for f in self.files_info:
+      a += "\t%s (%d/%d)\n" % (f['name'], f['size'], f['download'])
     return a
 
   def decode_time(self, time):
@@ -166,9 +179,13 @@ class torrents:
       return self.torrent_list[hash]
     return None
 
+  def get_torrent_file_list(self, hash):
+    return self.connection.webui_ls_files(hash)
+
   def add_torrent(self, file):
     result = None
-    if file.startswith("http") or file.startswith("ftp"):
+    low_file = file.lower()
+    if low_file.startswith("http:") or low_file.startswith("ftp:"):
       result = self.connection.webui_add_url(file)
     else:
       result = self.connection.webui_add_file(file)
@@ -190,9 +207,6 @@ class torrents:
 
   def start(self, hash):
     self.connection.webui_start_torrent(hash)
-
-  def files(self, hash):
-    self.connection.webui_ls_files(hash)
 
   def __str__(self):
     s = ""
@@ -309,27 +323,29 @@ def main():
       tor = list.getTorrent(tor_id)
       if tor is None:
         continue
+      name = tor.name  
       hash = tor.hash
       if action == "start":  
         if not silent:
-          print "Start: %s" % hash
+          print "Start: %s" % name 
         list.start(hash)
       elif action == "stop":  
         if not silent:
-          print "Stop: %s" % hash
+          print "Stop: %s" % name
         list.stop(hash)
       elif action == "fstart":  
         if not silent:
-          print "Force Start: %s" % hash
+          print "Force Start: %s" % name 
         list.force_start(hash)  
       elif action == "remove":  
         if not silent:
-          print "Remove Torrent: %s" % hash
+          print "Remove Torrent: %s" % name 
         list.remove(hash)  
       elif action == "detail":  
         if not silent:
-          print "Details: %s" % hash
+          print "Details: %s" % name 
         t = list.getTorrent(hash)
+        t.update_files(list.get_torrent_file_list(hash))
         if t is not None:
           if not silent:
             print t.detailed()
