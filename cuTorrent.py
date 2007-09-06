@@ -47,14 +47,17 @@ State_Strings = (
                  #(128 , "Loaded"),
                  (16  , "Error"),
                  (2   , "Checking"),
+                 (32  , "Paused"),
                  (1+64, "Downloading"),
                  (8+128, "Stopped"),
                  (1, "Forced Download"),
                 ) 
 
 class torrent:
-  def __init__(self, torrent_info):
+  def __init__(self, torrent_info, file_info=None):
     self.update(torrent_info)
+    if file_info:
+      self.update_files(file_info)
 
   def update(self, torrent_info):
     self.info = torrent_info;
@@ -114,8 +117,11 @@ class torrent:
     return "%s %s:%02d.%s" % (days, hour, min, sec)
 
   def console_out(self, color=True):
-    s  = "%s(%02d)%s %s : %s\n" % \
-                (Colors['yellow'], self.position ,Colors['normal'],
+    p = "  "
+    if self.position != -1:
+      p = "%02d" % self.position
+    s  = "%s(%s)%s %s : %s\n" % \
+                (Colors['yellow'], p, Colors['normal'],
                  self.name,self.state_str())
     s += "\t"+Colors['blue'] + self.hash + Colors['normal'] + " - "
     s += "%s%.1f%s%% " % (Colors['red'], self.percent, Colors['normal']) 
@@ -177,7 +183,7 @@ class torrents:
       hash = tor
     if hash in self.torrent_list:
       return self.torrent_list[hash]
-    return None
+    raise Exception('Invalid torrent id')
 
   def get_torrent_file_list(self, hash):
     return self.connection.webui_ls_files(hash)
@@ -233,12 +239,13 @@ def usage():
   print "                   start  - Start torrents"
   print "                   fstart - Force torrents to start"
   print "                   stop   - Stop torrents"
+  print "                   pause  - Pause torrents"
   print "                   remove - Remove torrents"
   print "                   detail - Print detailed torrent information"
-  print " -o/--host       Hostname (default: localhost)"
-  print " -p/--port       Port (default: 8080)"
-  print " -u/--user       Username (default: admin)"
-  print " -w/--password   Password (default: admin)"
+  print " -o/--host       WebUI's Hostname (default: localhost)"
+  print " -p/--port       WebUI's Port (default: 8080)"
+  print " -u/--user       WebUI's Username (default: admin)"
+  print " -w/--password   WebUI's Password (default: admin)"
 
 def main():
   try:
@@ -246,9 +253,9 @@ def main():
       ["help", "silent",
        "upload=", "host=",
        "port=", "user=", 
-       "password=", "torrent=",
+       "password=", "torrent=", "hash=",
        "action=",
-       "remove", "start", "stop", "fstart", "detail", "list"])
+       "remove", "start", "stop", "pause", "fstart", "detail", "list"])
   except getopt.GetoptError:
     # print help information and exit:
     usage()
@@ -262,13 +269,12 @@ def main():
   file = None
   silent = False
   for o, a in opts:
-    #print o
     if o == "-s" or o == "--silent":
       silent = True
     elif o == "-h" or o == "--help":
       usage()
       return
-    elif o == "--torrent" or o == "-t":
+    elif o == "--torrent" or o == "--hash" or o == "-t":
       if "," in a:
         for b in a.split(","):
           torrent_ids.append(b)
@@ -294,6 +300,8 @@ def main():
       action = "fstart"
     elif o == "--stop":
       action = "stop"
+    elif o == "--pause":
+      action = "pause"
     elif o == "--detail":
       action = "detail"
     elif o == "--list":
@@ -333,6 +341,10 @@ def main():
         if not silent:
           print "Stop: %s" % name
         list.stop(hash)
+      elif action == "pause":  
+        if not silent:
+          print "Pause: %s" % name
+        list.pause(hash)
       elif action == "fstart":  
         if not silent:
           print "Force Start: %s" % name 
